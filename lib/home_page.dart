@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:list_contact_app/contact.dart';
+import 'package:list_contact_app/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
@@ -26,6 +27,14 @@ class _HomePageState extends State<HomePage> {
     _loadContacts();
   }
 
+  @override
+  void dispose() {
+    nameController.dispose();
+    numberController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadContacts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -33,23 +42,25 @@ class _HomePageState extends State<HomePage> {
       if (contactsJson != null) {
         final List<dynamic> contactsList = jsonDecode(contactsJson);
         setState(() {
-          contacts =
-              contactsList.map((json) => Contact.fromJson(json)).toList();
+          contacts = contactsList.map((json) => Contact.fromJson(json)).toList();
           filteredContacts = contacts;
         });
       } else {
         print('No contacts found in SharedPreferences');
       }
-    } catch (e) {
-      print('Error loading contacts from SharedPreferences: $e');
+    } catch (error) {
+      print('Error loading contacts: $error');
     }
   }
 
   Future<void> _saveContacts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String contactsJson =
-        jsonEncode(contacts.map((contact) => contact.toJson()).toList());
-    await prefs.setString('contacts', contactsJson);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String contactsJson = jsonEncode(contacts.map((contact) => contact.toJson()).toList());
+      await prefs.setString('contacts', contactsJson);
+    } catch (error) {
+      print('Error saving contacts: $error');
+    }
   }
 
   void _addOrUpdateContact() {
@@ -60,15 +71,19 @@ class _HomePageState extends State<HomePage> {
         if (selectedIndex == -1) {
           contacts.add(Contact(name: name, number: number));
         } else {
-          contacts[selectedIndex].name = name;
-          contacts[selectedIndex].number = number;
+          if (selectedIndex >= 0 && selectedIndex < contacts.length) {
+            contacts[selectedIndex].name = name;
+            contacts[selectedIndex].number = number;
+          }
           selectedIndex = -1;
         }
         nameController.text = '';
         numberController.text = '';
         filteredContacts = contacts;
       });
-      _saveContacts();
+      _saveContacts().catchError((error) {
+        print('Error saving contacts: $error');
+      });
     }
   }
 
@@ -83,10 +98,18 @@ class _HomePageState extends State<HomePage> {
   void _searchContact(String query) {
     setState(() {
       filteredContacts = contacts
-          .where((contact) =>
-              contact.name.toLowerCase().contains(query.toLowerCase()))
+          .where((contact) => contact.name.toLowerCase().contains(query.toLowerCase()))
           .toList();
     });
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setBool('isLogin', false);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+    );
   }
 
   @override
@@ -103,9 +126,7 @@ class _HomePageState extends State<HomePage> {
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            const SizedBox(
-              height: 20,
-            ),
+            const SizedBox(height: 20),
             TextField(
               controller: searchController,
               decoration: InputDecoration(
@@ -113,12 +134,11 @@ class _HomePageState extends State<HomePage> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                prefixIcon: Icon(Icons.search),
               ),
               onChanged: (query) => _searchContact(query),
             ),
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
             TextField(
               controller: nameController,
               decoration: InputDecoration(
@@ -128,9 +148,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
             TextField(
               controller: numberController,
               keyboardType: TextInputType.number,
@@ -142,28 +160,26 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton(
                   onPressed: _addOrUpdateContact,
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                   child: const Text('Save'),
-                ),
-                ElevatedButton(
-                  onPressed: _addOrUpdateContact,
-                  child: const Text('Update'),
                 ),
               ],
             ),
-            const SizedBox(
-              height: 15,
-            ),
+            const SizedBox(height: 15),
             filteredContacts.isEmpty
                 ? const Text(
-                    'There is No Contacts Yet',
+                    'There are no contacts yet',
                     style: TextStyle(fontSize: 20),
                   )
                 : Expanded(
@@ -174,6 +190,11 @@ class _HomePageState extends State<HomePage> {
                   ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _logout,
+        tooltip: 'Logout',
+        child: Icon(Icons.logout),
       ),
     );
   }
@@ -214,17 +235,19 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             children: [
               InkWell(
-                  onTap: () {
-                    nameController.text = filteredContacts[index].name;
-                    numberController.text = filteredContacts[index].number;
-                    setState(() {
-                      selectedIndex = index;
-                    });
-                  },
-                  child: const Icon(Icons.edit)),
+                onTap: () {
+                  nameController.text = filteredContacts[index].name;
+                  numberController.text = filteredContacts[index].number;
+                  setState(() {
+                    selectedIndex = index;
+                  });
+                },
+                child: const Icon(Icons.edit),
+              ),
               InkWell(
-                  onTap: () => _deleteContact(index),
-                  child: const Icon(Icons.delete)),
+                onTap: () => _deleteContact(index),
+                child: const Icon(Icons.delete),
+              ),
             ],
           ),
         ),
