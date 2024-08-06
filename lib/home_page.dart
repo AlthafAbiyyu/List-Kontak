@@ -103,6 +103,30 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _confirmLogout() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Logout'),
+        content: Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await _logout();
+    }
+  }
+
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setBool('isLogin', false);
@@ -161,20 +185,15 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: _addOrUpdateContact,
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Save'),
+            ElevatedButton(
+              onPressed: _addOrUpdateContact,
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
+              ),
+              child: const Text('Save'),
             ),
             const SizedBox(height: 15),
             filteredContacts.isEmpty
@@ -192,7 +211,7 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _logout,
+        onPressed: _confirmLogout,
         tooltip: 'Logout',
         child: Icon(Icons.logout),
       ),
@@ -225,9 +244,7 @@ class _HomePageState extends State<HomePage> {
               filteredContacts[index].name,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            Text(
-              filteredContacts[index].number,
-            ),
+            Text(filteredContacts[index].number),
           ],
         ),
         trailing: SizedBox(
